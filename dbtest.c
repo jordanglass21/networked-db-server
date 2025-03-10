@@ -21,7 +21,7 @@
 #include "proj2.h"
 
 /* --------- argument parsing ---------- */
-
+// this commit is for testing git
 static struct argp_option options[] = {
     {"threads",      't', "NUM",  0, "number of threads"},
     {"count",        'n', "NUM",  0, "number of requests"},
