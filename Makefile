@@ -14,5 +14,9 @@ dbtest: dbtest.o
 
 dbserver: dbserver.o
 
+dbtest.o: dbtest.c
+
+dbserver.o: dbserver.c
+
 clean:
 	rm -f $(EXES) *.o data.[0-9]*
