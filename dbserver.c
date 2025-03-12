@@ -11,53 +11,157 @@
 
 /* Functions for the main thread */
 
-/* Prints statistics */
+/**
+ * Prints statistics
+ */
 void stats() {
 	printf("getting stats...\n");
 }
 
-/* Terminates the server */
+/** 
+ * Terminates the server
+ */
 void quit() {
 	printf("quitting...\n");
 }
 
+/* Variable declarations that are necessary for the worker threads */
+
+// Buffer to store data from request or data read from file.
 char buf[4096];
+
+// Defined struct that stores name and status for a file or index.
+typedef struct entry {
+	char name[31];
+	int status;
+}dbEntry;
+
+//The DB itself!
+dbEntry DB[200];
+
+/* Utility Functions */
+
+/**
+ * Reads data from a file 
+ * 
+ * @param filename char pointer storing name of the file to be read from 
+ * 					the file system.
+ */
+void read_file(char* filename) {
+	printf("Reading...\n");
+	int fd = open(filename, O_RDONLY);
+	int size = read(fd, buf, sizeof(buf));
+	printf("size %d\n", size);
+	printf("buf %s\n", buf);
+	close(fd);
+}
+
+/** 
+ * Writes data to a file
+ * 
+ * @param filename char pointer storing name of the file to be written to 
+ * 					the file system.
+ */
+void write_file(char* filename) {
+	printf("Writing...\n");
+	int fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0777);
+	if(fd < 0)
+		perror("can't open"), exit(0);
+	write(fd, buf, strlen(buf));
+	close(fd);
+}
+
+/**
+ * Checking to see if there is a dbEntry with the key, if so, return idx
+ * Otherwise return -1
+ * 
+ * @param name Character pointer that stores te name of the entry.
+ */
+int findIdxByName(char *name) {
+	for(int i = 0; i < 200; i++) {
+		if(strcmp(DB[i].name, name) == 0) {
+			return i;
+		}
+	}
+	return -1;
+}
+
+/**
+ * Finding an "open" spot on the database that the key can occupy and the
+ * value be stored.
+ */
+int findOpenIdx() {
+	for(int i = 0; i < 200; i++) {
+		if(DB[i].status == 0) {
+			return i;
+		}
+	}
+	return -1;
+}
+
 /* Functions for the listener and worker threads */
 
-/* Reads a request from a TCP connection and performs the requested action
+/**
+ * Reads a request from a TCP connection and performs the requested action
  * (write/read/delete).
+ * 
+ * @param sock_fd Socket file descriptor that we read requests from and
+ * 					respond through.
  */
 void handle_work(int sock_fd) {
-
 	struct request rq;
 	read(sock_fd, &rq, sizeof(rq));
 	printf("Operation: %c\n", rq.op_status);
 	printf("Name: %s\n", rq.name);
 	printf("Length: %s\n", rq.len);
 	if(rq.op_status == 'W') {
-        	memset(buf, 0, sizeof(buf));
-        	read(sock_fd, &buf, atoi(rq.len));
-        	usleep(random() % 10000);
-        	printf("Data: %s\n", buf);
-       		 // write to file here.
-    	}
-    	if(rq.op_status == 'R') {
+		int dbIdx = findIdxByName(rq.name);
+		if(dbIdx == -1) dbIdx = findOpenIdx();
+		if(dbIdx == -1) perror("No available space!"), exit(1);
+		usleep(random() % 10000);
+		// lock here?
+		memset(buf, 0, sizeof(buf));
+		read(sock_fd, &buf, atoi(rq.len));
+		printf("Data: %s\n\n", buf);
+		char filename[32];
+		sprintf(filename, "./tmp/data.%d", dbIdx);
+		write_file(filename);
+		strcpy(DB[dbIdx].name, rq.name);
+		DB[dbIdx].status = 1;
+		// unlock here?
+	}
+	if(rq.op_status == 'R') {
         // If read doesn't go as planned, set status, write sock_fd and return
         // Otherwise, write rq to sock_fd, write data to sock_fd. and return
-    	}
-    	rq.op_status = 'K';
+	}
+	if (rq.op_status == 'D') {
+		// Do Delete
+		// Elegantly handle errors
+	}
+	rq.op_status = 'K';
    	write(sock_fd, &rq, sizeof(rq));
-    	close(sock_fd);
+	close(sock_fd);
 }
 
-/* Allocates a work item and puts it on a queue, and int sock_id = get_work(),
- *  which gets an item from the queue and frees the work record.
+/**
+ * Allocates a work item and puts it on a queue.
+ * 
+ * @param sock_fd Socket file descriptor to queue a work item to.
  */
 void queue_work(int sock_fd) {
 	printf("queueing work...\n");
 }
 
-/* Creates and binds the listening socket.
+/**
+ * Gets an item from the queue and frees the work record.
+ */
+int get_work() {
+	printf("getting work item...\n");
+	return -1;
+}
+
+/**
+ * Creates and binds the listening socket.
  * Loops accepting connections and calling handle_work().
  */
 void listener() {
@@ -80,51 +184,18 @@ void listener() {
 
 	// block until we get a new connection
 	while (1) {
-        	int fd = accept(sock, NULL, NULL);
+		int fd = accept(sock, NULL, NULL);
 		handle_work(fd);
 	}
 }
 
-/* Utility Functions */
-
-/* Reads data from a file
+/**
+ * Our main function!
  */
-void read_file(char* filename) {
-	printf("Reading...\n");
-	int fd = open(filename, O_RDONLY);
-	int size = read(fd, buf, sizeof(buf));
-	printf("size %d\n", size);
-	printf("buf %s\n", buf);
-	close(fd);
-}
-
-/* Writes data to a file
- */
-void write_file(char* filename) {
-	printf("Writing...\n");
-	int fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0777);
-	if(fd < 0)
-		perror("can't open"), exit(0);
-	write(fd, buf, strlen(buf));
-	close(fd);
-}
-
-
-
 int main(void) {
 	// deletes all files from previous program run
-	system("rm -f /tmp/data.*");
-	
-	strcpy(buf, "this is a test");
-	char filename[32];
-	int sequence_number = 0;
-	sprintf(filename, "./tmp/data.%d", sequence_number);
-	
-	write_file(filename);
-	read_file(filename);
-	
-	//listener();
-	//stats();
-	//quit();
+	system("rm -f ./tmp/data.*");
+	for(int i = 0; i < 200; i++) DB[i].status = 0;
+	listener();
 	return 0;
 }
