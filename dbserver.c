@@ -3,6 +3,7 @@
 #include <unistd.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <string.h>
 
 #include "proj2.h"
 
@@ -18,7 +19,40 @@ void quit() {
 	printf("quitting...\n");
 }
 
+char buf[4096];
 /* Functions for the listener and worker threads */
+
+/* Reads a request from a TCP connection and performs the requested action
+ * (write/read/delete).
+ */
+void handle_work(int sock_fd) {
+	struct request rq;
+    read(sock_fd, &rq, sizeof(rq));
+    printf("Operation: %c\n", rq.op_status);
+    printf("Name: %s\n", rq.name);
+    printf("Length: %s\n", rq.len);
+    if(rq.op_status == 'W') {
+        memset(buf, 0, sizeof(buf));
+        read(sock_fd, &buf, atoi(rq.len));
+        usleep(random() % 10000);
+        printf("Data: %s\n", buf);
+        // write to file here.
+    }
+    if(rq.op_status == 'R') {
+        // If read doesn't go as planned, set status, write sock_fd and return
+        // Otherwise, write rq to sock_fd, write data to sock_fd. and return
+    }
+    rq.op_status = 'K';
+    write(sock_fd, &rq, sizeof(rq));
+    close(sock_fd);
+}
+
+/* Allocates a work item and puts it on a queue, and int sock_id = get_work(),
+ *  which gets an item from the queue and frees the work record.
+ */
+void queue_work(int sock_fd) {
+	printf("queueing work...\n");
+}
 
 /* Creates and binds the listening socket.
  * Loops accepting connections and calling handle_work().
@@ -29,7 +63,7 @@ void listener() {
 	// given by part 2 of assignment
 	int port = 5000;
 	// create a "listening" TCP socket which will listen for incoming connections
-	int sock = socket(AF-INET, SOCK_STREAM, 0);
+	int sock = socket(AF_INET, SOCK_STREAM, 0);
 	// the address we'll bind to
 	struct sockaddr_in addr = {.sin_family = AF_INET,
 					.sin_port = htons(port),
@@ -44,27 +78,12 @@ void listener() {
 	// block until we get a new connection
 	while (1) {
         	int fd = accept(sock, NULL, NULL);
+			handle_work(fd);
 	}
-	
-	
 }
-
-/* Reads a request from a TCP connection and performs the requested action
- * (write/read/delete).
- */
-void handle_work(int sock_fd) {
-	printf("handling work...\n");
-}
-
-/* Allocates a work item and puts it on a queue, and int sock_id = get_work(),
- *  which gets an item from the queue and frees the work record.
- */
-void queue_work(int sock_fd) {
-	printf("queueing work...\n");
-}
-
 
 int main(void) {
+	listener();
 	stats();
 	quit();
 	return 0;

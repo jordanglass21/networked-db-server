@@ -10,13 +10,13 @@ EXES = dbserver dbtest
 
 all: $(EXES)
 
-dbtest: dbtest.o
-
-dbserver: dbserver.o
-
 dbtest.o: dbtest.c
-
+	gcc $(CFLAGS) -c $<
 dbserver.o: dbserver.c
-
+	gcc $(CFLAGS) -c $<
+dbtest: dbtest.o
+	gcc $(CFLAGS) $< -o $@ $(LDLIBS)
+dbserver: dbserver.o
+	gcc $(CFLAGS) $< -o $@ $(LDLIBS)
 clean:
 	rm -f $(EXES) *.o data.[0-9]*
