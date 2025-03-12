@@ -6,7 +6,6 @@
 #include <string.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <string.h>
 
 #include "proj2.h"
 
@@ -95,6 +94,7 @@ void read_file(char* filename) {
 	int fd = open(filename, O_RDONLY);
 	int size = read(fd, buf, sizeof(buf));
 	printf("size %d\n", size);
+	printf("buf %s\n", buf);
 	close(fd);
 }
 
@@ -118,7 +118,7 @@ int main(void) {
 	strcpy(buf, "this is a test");
 	char filename[32];
 	int sequence_number = 0;
-	sprintf(filename, "/tmp/data.%d", sequence_number);
+	sprintf(filename, "./tmp/data.%d", sequence_number);
 	
 	write_file(filename);
 	read_file(filename);
