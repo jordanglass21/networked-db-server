@@ -4,6 +4,9 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <string.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <string.h>
 
 #include "proj2.h"
 
@@ -26,25 +29,26 @@ char buf[4096];
  * (write/read/delete).
  */
 void handle_work(int sock_fd) {
+
 	struct request rq;
-    read(sock_fd, &rq, sizeof(rq));
-    printf("Operation: %c\n", rq.op_status);
-    printf("Name: %s\n", rq.name);
-    printf("Length: %s\n", rq.len);
-    if(rq.op_status == 'W') {
-        memset(buf, 0, sizeof(buf));
-        read(sock_fd, &buf, atoi(rq.len));
-        usleep(random() % 10000);
-        printf("Data: %s\n", buf);
-        // write to file here.
-    }
-    if(rq.op_status == 'R') {
+	read(sock_fd, &rq, sizeof(rq));
+	printf("Operation: %c\n", rq.op_status);
+	printf("Name: %s\n", rq.name);
+	printf("Length: %s\n", rq.len);
+	if(rq.op_status == 'W') {
+        	memset(buf, 0, sizeof(buf));
+        	read(sock_fd, &buf, atoi(rq.len));
+        	usleep(random() % 10000);
+        	printf("Data: %s\n", buf);
+       		 // write to file here.
+    	}
+    	if(rq.op_status == 'R') {
         // If read doesn't go as planned, set status, write sock_fd and return
         // Otherwise, write rq to sock_fd, write data to sock_fd. and return
-    }
-    rq.op_status = 'K';
-    write(sock_fd, &rq, sizeof(rq));
-    close(sock_fd);
+    	}
+    	rq.op_status = 'K';
+   	write(sock_fd, &rq, sizeof(rq));
+    	close(sock_fd);
 }
 
 /* Allocates a work item and puts it on a queue, and int sock_id = get_work(),
@@ -78,13 +82,49 @@ void listener() {
 	// block until we get a new connection
 	while (1) {
         	int fd = accept(sock, NULL, NULL);
-			handle_work(fd);
+		handle_work(fd);
 	}
 }
 
+/* Utility Functions */
+
+/* Reads data from a file
+ */
+void read_file(char* filename) {
+	printf("Reading...\n");
+	int fd = open(filename, O_RDONLY);
+	int size = read(fd, buf, sizeof(buf));
+	printf("size %d\n", size);
+	close(fd);
+}
+
+/* Writes data to a file
+ */
+void write_file(char* filename) {
+	printf("Writing...\n");
+	int fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0777);
+	if(fd < 0)
+		perror("can't open"), exit(0);
+	write(fd, buf, strlen(buf));
+	close(fd);
+}
+
+
+
 int main(void) {
-	listener();
-	stats();
-	quit();
+	// deletes all files from previous program run
+	system("rm -f /tmp/data.*");
+	
+	strcpy(buf, "this is a test");
+	char filename[32];
+	int sequence_number = 0;
+	sprintf(filename, "/tmp/data.%d", sequence_number);
+	
+	write_file(filename);
+	read_file(filename);
+	
+	//listener();
+	//stats();
+	//quit();
 	return 0;
 }
