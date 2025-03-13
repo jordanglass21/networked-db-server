@@ -47,13 +47,14 @@ dbEntry DB[200];
  * @param filename char pointer storing name of the file to be read from 
  * 					the file system.
  */
-void read_file(char* filename) {
+int read_file(char* filename) {
 	printf("Reading...\n");
 	int fd = open(filename, O_RDONLY);
 	int size = read(fd, buf, sizeof(buf));
 	printf("size %d\n", size);
 	printf("buf %s\n", buf);
 	close(fd);
+	return size;
 }
 
 /** 
@@ -114,6 +115,7 @@ void handle_work(int sock_fd) {
 	printf("Operation: %c\n", rq.op_status);
 	printf("Name: %s\n", rq.name);
 	printf("Length: %s\n", rq.len);
+	char filename[32];
 	if(rq.op_status == 'W') {
 		int dbIdx = findIdxByName(rq.name);
 		if(dbIdx == -1) dbIdx = findOpenIdx();
@@ -123,23 +125,31 @@ void handle_work(int sock_fd) {
 		memset(buf, 0, sizeof(buf));
 		read(sock_fd, &buf, atoi(rq.len));
 		printf("Data: %s\n\n", buf);
-		char filename[32];
 		sprintf(filename, "./tmp/data.%d", dbIdx);
 		write_file(filename);
 		strcpy(DB[dbIdx].name, rq.name);
 		DB[dbIdx].status = 1;
 		// unlock here?
-	}
-	if(rq.op_status == 'R') {
-        // If read doesn't go as planned, set status, write sock_fd and return
-        // Otherwise, write rq to sock_fd, write data to sock_fd. and return
-	}
-	if (rq.op_status == 'D') {
+		rq.op_status = 'K';
+		write(sock_fd, &rq, sizeof(rq));
+	} else if(rq.op_status == 'R') {
+		int idx = findIdxByName(rq.name);
+		if(idx == -1) {
+			rq.op_status = 'X';
+			write(sock_fd, &rq, sizeof(rq));
+			close(sock_fd);
+			return;
+		}
+		sprintf(filename, "./tmp/data.%d", idx);
+		int sz = read_file(filename);
+		rq.op_status = 'K';
+		sprintf(rq.len, "%7d", sz);
+		write(sock_fd, &rq, sizeof(rq));
+		write(sock_fd, &buf, sz);
+	} else if (rq.op_status == 'D') {
 		// Do Delete
 		// Elegantly handle errors
 	}
-	rq.op_status = 'K';
-   	write(sock_fd, &rq, sizeof(rq));
 	close(sock_fd);
 }
 
