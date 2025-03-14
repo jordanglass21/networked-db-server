@@ -11,4 +11,45 @@ struct request {
     char len[8];                /* text, decimal, null-padded */
 };
 
+/**
+ * Structure representing a node in the linked queue.
+ */
+typedef struct node_t {
+        void *data; // file descriptor -  need to malloc this
+        struct node_t *next;
+} node_t;
+
+/**
+ * Structure representing a FIFO queue.
+ */
+typedef struct queue_t {
+        node_t *first;
+        node_t *last;
+        int size;
+} queue_t;
+
+/**
+ * Initializes the queue.
+ *
+ * @param queue Pointer to the queue to initialize.
+ */
+void initialize_queue(queue_t *queue);
+
+
+/**
+ * Adds an element to the end of a queue.
+ *
+ * @param queue The queue to modify.
+ * @param element The element to add.
+ */
+void queue_work(queue_t *queue, void *element);
+
+/**
+ * Removes and returns the element at the front of the queue.
+ *
+ * @param queue The queue to modify.
+ * @return The element removed from the front.
+ */
+void *dequeue_work(queue_t *queue);
+
 #endif

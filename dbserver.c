@@ -153,13 +153,74 @@ void handle_work(int sock_fd) {
 	close(sock_fd);
 }
 
+/* Queueing Functions */
+
 /**
  * Allocates a work item and puts it on a queue.
  * 
  * @param sock_fd Socket file descriptor to queue a work item to.
  */
-void queue_work(int sock_fd) {
+void queue_work(queue_t *queue, void *sock_fd) {
 	printf("queueing work...\n");
+
+	// initialize node
+	node_t *node = malloc(sizeof(node_t));
+	node->data = sock_fd;
+	node->next = NULL;
+
+	//NEED MUTEX AND CONDITION VARIABLE
+
+	// if queue is empty
+        if (queue->first == NULL) {
+                // this node will be the first and last
+                queue->first = node;
+                queue->last = node;
+        } else { // if queue is not empty
+                queue->last->next = node; // add this node to the end of the queue
+                queue->last = node; // tell the queue that this is now the last node
+        }
+
+        // we added a node so the queue grew by one
+        queue->size++;
+}
+
+/**
+ * Removes and returns the element at the front of the queue.
+ *
+ * @param queue The queue to modify.
+ * @return The data removed from the front of the queue, or NULL if the queue is empty.
+ */
+void *dequeue(queue_t *queue) {
+
+        // if there is nothing in the queue
+        if (queue->size == 0 || queue == NULL) {
+                return NULL;
+        }
+
+        // get the data of the first node (which we will return)
+        node_t *first = queue->first;
+        void *data = first->data;
+
+        // update the state of queue struct
+        queue->first = first->next;
+        queue->size --;
+
+        // free allocated mememory of the dequeued node
+        free(first);
+
+        return data;
+}
+
+/**
+ * Initializes the queue.
+ *
+ * @param queue Pointer to the queue to initialize.
+ * @param print_func Function to print queue data.
+ */
+void initialize_queue(queue_t *queue) {
+    queue->first = NULL;
+    queue->last = NULL;
+    queue->size = 0;
 }
 
 /**
@@ -205,7 +266,15 @@ void listener() {
 int main(void) {
 	// deletes all files from previous program run
 	system("rm -f ./tmp/data.*");
+
+	// initialize the work queue
+	queue_t *queue = malloc(sizeof(queue_t) * sizeof(DB));
+	initialize_queue(queue);
+	
+
 	for(int i = 0; i < 200; i++) DB[i].status = 0;
 	listener();
+
+	free(queue);
 	return 0;
 }
