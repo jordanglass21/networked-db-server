@@ -103,6 +103,80 @@ int findOpenIdx() {
 /* Functions for the listener and worker threads */
 
 /**
+ * Function that handles the write operation for a request
+ * 
+ * @param rq 		Request struct that stores information about a request.
+ * @param sock_fd 	Socket file descriptor to read data from/write data to.
+ * @param filename	Filename to write data from request to for DB impl.
+ */
+void handle_write(struct request rq, int sock_fd, char* filename) {
+	int dbIdx = findIdxByName(rq.name);
+	if(dbIdx == -1) dbIdx = findOpenIdx();
+	if(dbIdx == -1) {
+		perror("WRITE: INSUFFICIENT SPACE FOR WRITE");
+		rq.op_status = 'X';
+		write(sock_fd, &rq, sizeof(rq));
+		return;
+	}
+	usleep(random() % 10000);
+	memset(buf, 0, sizeof(buf));
+	read(sock_fd, &buf, atoi(rq.len));
+	printf("Data: %s\n\n", buf);
+	sprintf(filename, "./tmp/data.%d", dbIdx);
+	write_file(filename);
+	strcpy(DB[dbIdx].name, rq.name);
+	DB[dbIdx].status = 1;
+	rq.op_status = 'K';
+	write(sock_fd, &rq, sizeof(rq));
+}
+
+/**
+ * Function that handles the read operation for a request
+ * 
+ * @param rq 		Request struct that stores information about a request.
+ * @param sock_fd 	Socket file descriptor to read data from/write data to.
+ * @param filename	Filename to write data from request to for DB impl.
+ */
+
+ void handle_read(struct request rq, int sock_fd, char* filename) {
+	int idx = findIdxByName(rq.name);
+	if(idx == -1) {
+		perror("READ: NO KEY FOUND WITH SPECIFIED VALUE");
+		rq.op_status = 'X';
+		write(sock_fd, &rq, sizeof(rq));
+		return;
+	}
+	sprintf(filename, "./tmp/data.%d", idx);
+	int sz = read_file(filename);
+	rq.op_status = 'K';
+	sprintf(rq.len, "%7d", sz);
+	write(sock_fd, &rq, sizeof(rq));
+	write(sock_fd, &buf, sz);
+ }
+
+ /**
+ * Function that handles the delete operation for a request
+ * 
+ * @param rq 		Request struct that stores information about a request.
+ * @param sock_fd 	Socket file descriptor to read data from/write data to.
+ * @param filename	Filename to write data from request to for DB impl.
+ */
+void handle_delete(struct request rq, int sock_fd, char* filename) {
+	int idx = findIdxByName(rq.name);
+	if(idx == -1) {
+		// no entry found with name, returning failure
+		perror("DELETE: NO KEY FOUND WITH SPECIFIED VALUE");
+		rq.op_status = 'X';
+		write(sock_fd, &rq, sizeof(rq));
+		return;
+	}
+	DB[idx].status = 0;
+	memset(DB[idx].name, 0, 31);
+	rq.op_status = 'K';
+	write(sock_fd, &rq, sizeof(rq));
+}
+
+/**
  * Reads a request from a TCP connection and performs the requested action
  * (write/read/delete).
  * 
@@ -117,38 +191,17 @@ void handle_work(int sock_fd) {
 	printf("Length: %s\n", rq.len);
 	char filename[32];
 	if(rq.op_status == 'W') {
-		int dbIdx = findIdxByName(rq.name);
-		if(dbIdx == -1) dbIdx = findOpenIdx();
-		if(dbIdx == -1) perror("No available space!"), exit(1);
-		usleep(random() % 10000);
-		// lock here?
-		memset(buf, 0, sizeof(buf));
-		read(sock_fd, &buf, atoi(rq.len));
-		printf("Data: %s\n\n", buf);
-		sprintf(filename, "./tmp/data.%d", dbIdx);
-		write_file(filename);
-		strcpy(DB[dbIdx].name, rq.name);
-		DB[dbIdx].status = 1;
-		// unlock here?
-		rq.op_status = 'K';
-		write(sock_fd, &rq, sizeof(rq));
+		//lock?
+		handle_write(rq, sock_fd, filename);
+		//unlock?
 	} else if(rq.op_status == 'R') {
-		int idx = findIdxByName(rq.name);
-		if(idx == -1) {
-			rq.op_status = 'X';
-			write(sock_fd, &rq, sizeof(rq));
-			close(sock_fd);
-			return;
-		}
-		sprintf(filename, "./tmp/data.%d", idx);
-		int sz = read_file(filename);
-		rq.op_status = 'K';
-		sprintf(rq.len, "%7d", sz);
-		write(sock_fd, &rq, sizeof(rq));
-		write(sock_fd, &buf, sz);
+		//lock
+		handle_read(rq, sock_fd, filename);
+		//unlock
 	} else if (rq.op_status == 'D') {
-		// Do Delete
-		// Elegantly handle errors
+		//lock
+		handle_delete(rq, sock_fd, filename);
+		//unlock
 	}
 	close(sock_fd);
 }
