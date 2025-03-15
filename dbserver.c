@@ -238,13 +238,14 @@ void queue_work(queue_t *queue, void *sock_fd) {
 }
 
 /**
- * Removes and returns the element at the front of the queue.
+ * Gets an item from the queue and frees the work record.
  *
  * @param queue The queue to modify.
  * @return The data removed from the front of the queue, or NULL if the queue is empty.
  */
-void *dequeue(queue_t *queue) {
+int *get_work(queue_t *queue) {
 
+	printf("getting work item...\n");
         // if there is nothing in the queue
         if (queue->size == 0 || queue == NULL) {
                 return NULL;
@@ -252,15 +253,16 @@ void *dequeue(queue_t *queue) {
 
         // get the data of the first node (which we will return)
         node_t *first = queue->first;
-        void *data = first->data;
-
-        // update the state of queue struct
+        int *data = (int *) first->data;
+        
+	// update the state of queue struct
         queue->first = first->next;
         queue->size --;
 
         // free allocated mememory of the dequeued node
         free(first);
 
+	printf("data: %d\n",*data);
         return data;
 }
 
@@ -274,14 +276,6 @@ void initialize_queue(queue_t *queue) {
     queue->first = NULL;
     queue->last = NULL;
     queue->size = 0;
-}
-
-/**
- * Gets an item from the queue and frees the work record.
- */
-int get_work() {
-	printf("getting work item...\n");
-	return -1;
 }
 
 /**
@@ -324,6 +318,15 @@ int main(void) {
 	queue_t *queue = malloc(sizeof(queue_t) * sizeof(DB));
 	initialize_queue(queue);
 	
+	int x = 1;
+	int y = 2;
+	int z = 3;
+	queue_work(queue, &x);	
+	queue_work(queue, &y);
+	queue_work(queue, &z);
+	get_work(queue);
+	get_work(queue);
+	get_work(queue);
 
 	for(int i = 0; i < 200; i++) DB[i].status = 0;
 	listener();
