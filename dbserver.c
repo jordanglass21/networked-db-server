@@ -131,6 +131,7 @@ void handle_write(struct request rq, int sock_fd, char* filename) {
 		perror("WRITE: INSUFFICIENT SPACE FOR WRITE");
 		rq.op_status = 'X';
 		write(sock_fd, &rq, sizeof(rq));
+		STATS->failed_count++;
 		return;
 	}
 	usleep(random() % 10000);
@@ -143,6 +144,10 @@ void handle_write(struct request rq, int sock_fd, char* filename) {
 	DB[dbIdx].status = 1;
 	rq.op_status = 'K';
 	write(sock_fd, &rq, sizeof(rq));
+	
+	//update stats
+	STATS->write_count++;
+	STATS->table_count++;
 }
 
 /**
@@ -159,6 +164,7 @@ void handle_write(struct request rq, int sock_fd, char* filename) {
 		perror("READ: NO KEY FOUND WITH SPECIFIED VALUE");
 		rq.op_status = 'X';
 		write(sock_fd, &rq, sizeof(rq));
+		STATS->failed_count++;
 		return;
 	}
 	sprintf(filename, "./tmp/data.%d", idx);
@@ -167,6 +173,9 @@ void handle_write(struct request rq, int sock_fd, char* filename) {
 	sprintf(rq.len, "%7d", sz);
 	write(sock_fd, &rq, sizeof(rq));
 	write(sock_fd, &buf, sz);
+
+	//update stats
+	STATS->read_count++;
  }
 
  /**
@@ -183,12 +192,17 @@ void handle_delete(struct request rq, int sock_fd, char* filename) {
 		perror("DELETE: NO KEY FOUND WITH SPECIFIED VALUE");
 		rq.op_status = 'X';
 		write(sock_fd, &rq, sizeof(rq));
+		STATS->failed_count++;
 		return;
 	}
 	DB[idx].status = 0;
 	memset(DB[idx].name, 0, 31);
 	rq.op_status = 'K';
 	write(sock_fd, &rq, sizeof(rq));
+
+	//update stats
+	STATS->delete_count++;
+	STATS->table_count--;
 }
 
 /**
@@ -250,6 +264,7 @@ void queue_work(queue_t *queue, void *sock_fd) {
 
         // we added a node so the queue grew by one
         queue->size++;
+	STATS->requests_queued = queue->size;
 }
 
 /**
@@ -345,7 +360,6 @@ int main(void) {
 	for(int i = 0; i < 200; i++) DB[i].status = 0;
 	//listener();
 
-
 	char line[128];
     	while (fgets(line, sizeof(line), stdin) != NULL) {
         	char word[8];
@@ -359,6 +373,7 @@ int main(void) {
 		}
     	}
 
+	free(SOCK_FD); // if we exit from quit function will this ever be called?
 	free(STATS);
 	free(queue);
 	return 0;
