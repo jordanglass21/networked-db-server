@@ -27,6 +27,8 @@ dbEntry DB[200];
 // struct to keep track of stats
 stats_t *STATS;
 
+int *SOCK_FD;
+
 /* Functions for the main thread */
 
 /**
@@ -46,9 +48,9 @@ void stats() {
 /** 
  * Terminates the server
  */
-void quit(int sock_fd) {
+void quit(int *sock_fd) {
 	printf("quitting...\n");
-	close(sock_fd);
+	close(*sock_fd);
 	exit(0);
 }
 
@@ -302,6 +304,7 @@ void listener() {
 	int port = 5000;
 	// create a "listening" TCP socket which will listen for incoming connections
 	int sock = socket(AF_INET, SOCK_STREAM, 0);
+	*SOCK_FD = sock;
 	// the address we'll bind to
 	struct sockaddr_in addr = {.sin_family = AF_INET,
 					.sin_port = htons(port),
@@ -334,12 +337,27 @@ int main(void) {
 	//initialize the stats struct
 	STATS = calloc(0, sizeof(stats_t));
 	
+	SOCK_FD = calloc(0, sizeof(int));
 	//int x = 1;
 	//queue_work(queue, &x);	
 	//get_work(queue);
 
 	for(int i = 0; i < 200; i++) DB[i].status = 0;
-	listener();
+	//listener();
+
+
+	char line[128];
+    	while (fgets(line, sizeof(line), stdin) != NULL) {
+        	char word[8];
+    		sscanf(line, "%7s", word);
+		if (strcmp(word, "quit") == 0) {
+			quit(SOCK_FD);
+		} else if (strcmp(word, "stats") == 0) {
+			stats();
+		} else {
+			printf("Command not recognized\n");
+		}
+    	}
 
 	free(STATS);
 	free(queue);
