@@ -52,4 +52,16 @@ void queue_work(queue_t *queue, void *element);
  */
 void *dequeue_work(queue_t *queue);
 
+/**
+ * Structure to store the statistics of the program;
+ */
+typedef struct stats_t {
+	int table_count;
+	int read_count;
+	int write_count;
+	int delete_count;
+	int requests_queued;
+	int failed_count;
+} stats_t;
+
 #endif

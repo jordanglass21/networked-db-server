@@ -9,21 +9,6 @@
 
 #include "proj2.h"
 
-/* Functions for the main thread */
-
-/**
- * Prints statistics
- */
-void stats() {
-	printf("getting stats...\n");
-}
-
-/** 
- * Terminates the server
- */
-void quit() {
-	printf("quitting...\n");
-}
 
 /* Variable declarations that are necessary for the worker threads */
 
@@ -32,12 +17,40 @@ char buf[4096];
 
 // Defined struct that stores name and status for a file or index.
 typedef struct entry {
-	char name[31];
-	int status;
+        char name[31];
+        int status;
 }dbEntry;
 
 //The DB itself!
 dbEntry DB[200];
+
+// struct to keep track of stats
+stats_t *STATS;
+
+/* Functions for the main thread */
+
+/**
+ * Prints statistics
+ */
+void stats() {
+        printf("getting stats...\n");
+        printf("Number of objects in table: %d\n", STATS->table_count);
+        printf("Number of read requests: %d\n", STATS->read_count);
+        printf("Number of write requests: %d\n", STATS->write_count);
+        printf("Number of delete requests: %d\n", STATS->delete_count);
+        printf("Number of requests queued waiting for worker threads: %d\n", STATS->requests_queued);
+        printf("Number of failed requests: %d\n", STATS->failed_count);
+}
+
+
+/** 
+ * Terminates the server
+ */
+void quit(int sock_fd) {
+	printf("quitting...\n");
+	close(sock_fd);
+	exit(0);
+}
 
 /* Utility Functions */
 
@@ -317,20 +330,18 @@ int main(void) {
 	// initialize the work queue
 	queue_t *queue = malloc(sizeof(queue_t) * sizeof(DB));
 	initialize_queue(queue);
+
+	//initialize the stats struct
+	STATS = calloc(0, sizeof(stats_t));
 	
-	int x = 1;
-	int y = 2;
-	int z = 3;
-	queue_work(queue, &x);	
-	queue_work(queue, &y);
-	queue_work(queue, &z);
-	get_work(queue);
-	get_work(queue);
-	get_work(queue);
+	//int x = 1;
+	//queue_work(queue, &x);	
+	//get_work(queue);
 
 	for(int i = 0; i < 200; i++) DB[i].status = 0;
 	listener();
 
+	free(STATS);
 	free(queue);
 	return 0;
 }
