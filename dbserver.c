@@ -6,6 +6,7 @@
 #include <string.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <pthread.h>
 
 #include "proj2.h"
 
@@ -29,6 +30,12 @@ stats_t *STATS;
 
 int *SOCK_FD;
 
+queue_t *queue;
+
+pthread_mutex_t q_lock = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t d_lock = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t q_cond = PTHREAD_COND_INITIALIZER;
+
 /* Functions for the main thread */
 
 /**
@@ -51,6 +58,7 @@ void stats() {
 void quit(int *sock_fd) {
 	printf("quitting...\n");
 	close(*sock_fd);
+	free(sock_fd);
 	exit(0);
 }
 
@@ -220,17 +228,17 @@ void handle_work(int sock_fd) {
 	printf("Length: %s\n", rq.len);
 	char filename[32];
 	if(rq.op_status == 'W') {
-		//lock?
+		pthread_mutex_lock(&d_lock);
 		handle_write(rq, sock_fd, filename);
-		//unlock?
+		pthread_mutex_unlock(&d_lock);
 	} else if(rq.op_status == 'R') {
-		//lock
+		pthread_mutex_lock(&d_lock);
 		handle_read(rq, sock_fd, filename);
-		//unlock
+		pthread_mutex_unlock(&d_lock);
 	} else if (rq.op_status == 'D') {
-		//lock
+		pthread_mutex_lock(&d_lock);
 		handle_delete(rq, sock_fd, filename);
-		//unlock
+		pthread_mutex_unlock(&d_lock);
 	}
 	close(sock_fd);
 }
@@ -264,7 +272,7 @@ void queue_work(queue_t *queue, void *sock_fd) {
 
         // we added a node so the queue grew by one
         queue->size++;
-	STATS->requests_queued = queue->size;
+		STATS->requests_queued = queue->size;
 }
 
 /**
@@ -273,7 +281,7 @@ void queue_work(queue_t *queue, void *sock_fd) {
  * @param queue The queue to modify.
  * @return The data removed from the front of the queue, or NULL if the queue is empty.
  */
-int *get_work(queue_t *queue) {
+int *get_work() {
 
 	printf("getting work item...\n");
         // if there is nothing in the queue
@@ -292,7 +300,7 @@ int *get_work(queue_t *queue) {
         // free allocated mememory of the dequeued node
         free(first);
 
-	printf("data: %d\n",*data);
+		printf("data: %d\n",*data);
         return data;
 }
 
@@ -334,10 +342,21 @@ void listener() {
 	// block until we get a new connection
 	while (1) {
 		int fd = accept(sock, NULL, NULL);
-		handle_work(fd);
+		pthread_mutex_lock(&q_lock);
+		queue_work(queue, &fd);
+		pthread_mutex_unlock(&q_lock);
+		pthread_cond_signal(&q_cond);
 	}
 }
-
+void worker(void *arg) {
+	while(1) {
+		pthread_mutex_lock(&q_lock);
+		pthread_cond_wait(&q_cond, &q_lock);
+		int work_fd = *(get_work(queue));
+		pthread_mutex_unlock(&q_lock);
+		handle_work(work_fd);
+	}
+}
 /**
  * Our main function!
  */
@@ -346,35 +365,33 @@ int main(void) {
 	system("rm -f ./tmp/data.*");
 
 	// initialize the work queue
-	queue_t *queue = malloc(sizeof(queue_t) * sizeof(DB));
+	queue = malloc(sizeof(queue_t) * sizeof(DB));
 	initialize_queue(queue);
 
 	//initialize the stats struct
 	STATS = calloc(0, sizeof(stats_t));
 	
 	SOCK_FD = calloc(0, sizeof(int));
-	//int x = 1;
-	//queue_work(queue, &x);	
-	//get_work(queue);
 
 	for(int i = 0; i < 200; i++) DB[i].status = 0;
-	//listener();
-
+	pthread_t listener_t;
+	pthread_t w1;
+	int w1_id = 1;
+	pthread_create(&listener_t, NULL, (void *)listener, NULL);
+	pthread_create(&w1, NULL, (void *)worker, (void *)&w1_id);
 	char line[128];
-    	while (fgets(line, sizeof(line), stdin) != NULL) {
-        	char word[8];
-    		sscanf(line, "%7s", word);
+	while (fgets(line, sizeof(line), stdin) != NULL) {
+		char word[8];
+		sscanf(line, "%7s", word);
 		if (strcmp(word, "quit") == 0) {
+			free(STATS);
+			free(queue);
 			quit(SOCK_FD);
 		} else if (strcmp(word, "stats") == 0) {
 			stats();
 		} else {
 			printf("Command not recognized\n");
 		}
-    	}
-
-	free(SOCK_FD); // if we exit from quit function will this ever be called?
-	free(STATS);
-	free(queue);
+	}
 	return 0;
 }
