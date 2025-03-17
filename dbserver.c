@@ -16,6 +16,8 @@
 // Buffer to store data from request or data read from file.
 char buf[4096];
 
+int *PORT;
+
 // Defined struct that stores name and status for a file or index.
 typedef struct entry {
         char name[31];
@@ -338,7 +340,7 @@ void listener() {
 	printf("listening...\n");
 
 	// given by part 2 of assignment
-	int port = 5000;
+	int port = *PORT;
 	// create a "listening" TCP socket which will listen for incoming connections
 	int sock = socket(AF_INET, SOCK_STREAM, 0);
 	*SOCK_FD = sock;
@@ -377,7 +379,7 @@ void worker(void *arg) {
 /**
  * Our main function!
  */
-int main(void) {
+int main(int argc, char **argv) {
 	// deletes all files from previous program run
 	system("rm -f ./tmp/data.*");
 
@@ -386,9 +388,17 @@ int main(void) {
 	initialize_queue(queue);
 
 	//initialize the stats struct
-	STATS = calloc(0, sizeof(stats_t));
+	STATS = calloc(1, sizeof(stats_t));
 	
-	SOCK_FD = calloc(0, sizeof(int));
+	SOCK_FD = calloc(1, sizeof(int));
+
+	PORT = calloc(1, sizeof(int));
+	int port = 5000;
+	if (argc == 2) {
+		port = atoi(argv[0]);
+	}
+	*PORT = port;
+
 
 	for(int i = 0; i < 200; i++) DB[i].status = 0;
 	pthread_t listener_t;
@@ -403,6 +413,7 @@ int main(void) {
 		if (strcmp(word, "quit") == 0) {
 			free(STATS);
 			free(queue);
+			free(PORT);
 			quit(SOCK_FD);
 		} else if (strcmp(word, "stats") == 0) {
 			stats();
