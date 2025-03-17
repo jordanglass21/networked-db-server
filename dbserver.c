@@ -133,6 +133,7 @@ int findOpenIdx() {
  * @param filename	Filename to write data from request to for DB impl.
  */
 void handle_write(struct request rq, int sock_fd, char* filename) {
+	pthread_mutex_lock(&d_lock);
 	int dbIdx = findIdxByName(rq.name);
 	if(dbIdx == -1) dbIdx = findOpenIdx();
 	if(dbIdx == -1) {
@@ -142,14 +143,28 @@ void handle_write(struct request rq, int sock_fd, char* filename) {
 		STATS->failed_count++;
 		return;
 	}
+	if(DB[dbIdx].status == 2) {
+		perror("WRITE: Resource Busy");
+		rq.op_status = 'X';
+		write(sock_fd, &rq, sizeof(rq));
+		STATS->failed_count++;
+		return;
+	}
+	DB[dbIdx].status = 2;
+	pthread_mutex_unlock(&d_lock);
+
 	usleep(random() % 10000);
 	memset(buf, 0, sizeof(buf));
 	read(sock_fd, &buf, atoi(rq.len));
 	printf("Data: %s\n\n", buf);
 	sprintf(filename, "./tmp/data.%d", dbIdx);
+	
+	pthread_mutex_lock(&d_lock);
 	write_file(filename);
 	strcpy(DB[dbIdx].name, rq.name);
 	DB[dbIdx].status = 1;
+	pthread_mutex_unlock(&d_lock);
+
 	rq.op_status = 'K';
 	write(sock_fd, &rq, sizeof(rq));
 	
@@ -228,9 +243,7 @@ void handle_work(int sock_fd) {
 	printf("Length: %s\n", rq.len);
 	char filename[32];
 	if(rq.op_status == 'W') {
-		pthread_mutex_lock(&d_lock);
 		handle_write(rq, sock_fd, filename);
-		pthread_mutex_unlock(&d_lock);
 	} else if(rq.op_status == 'R') {
 		pthread_mutex_lock(&d_lock);
 		handle_read(rq, sock_fd, filename);
@@ -301,6 +314,7 @@ int *get_work() {
         free(first);
 
 		printf("data: %d\n",*data);
+		STATS->requests_queued = queue->size;
         return data;
 }
 
@@ -351,8 +365,11 @@ void listener() {
 void worker(void *arg) {
 	while(1) {
 		pthread_mutex_lock(&q_lock);
-		pthread_cond_wait(&q_cond, &q_lock);
+		if(queue->size == 0) {
+			pthread_cond_wait(&q_cond, &q_lock);
+		}
 		int work_fd = *(get_work(queue));
+		printf("work_fd: %d\n", work_fd);
 		pthread_mutex_unlock(&q_lock);
 		handle_work(work_fd);
 	}
