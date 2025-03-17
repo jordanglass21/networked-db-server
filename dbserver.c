@@ -45,6 +45,7 @@ pthread_cond_t q_cond = PTHREAD_COND_INITIALIZER;
  */
 void stats() {
         printf("getting stats...\n");
+	printf("Port: %d\n", *PORT);
         printf("Number of objects in table: %d\n", STATS->table_count);
         printf("Number of read requests: %d\n", STATS->read_count);
         printf("Number of write requests: %d\n", STATS->write_count);
@@ -395,7 +396,7 @@ int main(int argc, char **argv) {
 	PORT = calloc(1, sizeof(int));
 	int port = 5000;
 	if (argc == 2) {
-		port = atoi(argv[0]);
+		port = atoi(argv[1]);
 	}
 	*PORT = port;
 
