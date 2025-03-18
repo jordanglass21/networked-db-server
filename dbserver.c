@@ -266,12 +266,12 @@ void handle_work(int sock_fd) {
  * 
  * @param sock_fd Socket file descriptor to queue a work item to.
  */
-void queue_work(queue_t *queue, void *sock_fd) {
+void queue_work(queue_t *queue, int sock_fd) {
 	printf("queueing work...\n");
 
 	// initialize node
 	node_t *node = malloc(sizeof(node_t));
-	node->data = sock_fd;
+	node->fd = sock_fd;
 	node->next = NULL;
 
 	//NEED MUTEX AND CONDITION VARIABLE
@@ -297,17 +297,17 @@ void queue_work(queue_t *queue, void *sock_fd) {
  * @param queue The queue to modify.
  * @return The data removed from the front of the queue, or NULL if the queue is empty.
  */
-int *get_work() {
+int get_work() {
 
 	printf("getting work item...\n");
         // if there is nothing in the queue
         if (queue->size == 0 || queue == NULL) {
-                return NULL;
+                return -1;
         }
 
         // get the data of the first node (which we will return)
         node_t *first = queue->first;
-        int *data = (int *) first->data;
+        int fd = first->fd;
         
 	// update the state of queue struct
         queue->first = first->next;
@@ -316,9 +316,9 @@ int *get_work() {
         // free allocated mememory of the dequeued node
         free(first);
 
-		printf("data: %d\n",*data);
+		printf("fd: %d\n", fd);
 		STATS->requests_queued = queue->size;
-        return data;
+        return fd;
 }
 
 /**
@@ -360,7 +360,7 @@ void listener() {
 	while (1) {
 		int fd = accept(sock, NULL, NULL);
 		pthread_mutex_lock(&q_lock);
-		queue_work(queue, &fd);
+		queue_work(queue, fd);
 		pthread_mutex_unlock(&q_lock);
 		pthread_cond_signal(&q_cond);
 	}
@@ -371,7 +371,7 @@ void worker(void *arg) {
 		if(queue->size == 0) {
 			pthread_cond_wait(&q_cond, &q_lock);
 		}
-		int work_fd = *(get_work(queue));
+		int work_fd = get_work(queue);
 		printf("work_fd: %d\n", work_fd);
 		pthread_mutex_unlock(&q_lock);
 		handle_work(work_fd);

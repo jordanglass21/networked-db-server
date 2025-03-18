@@ -15,7 +15,7 @@ struct request {
  * Structure representing a node in the linked queue.
  */
 typedef struct node_t {
-        void *data; // file descriptor -  need to malloc this
+        int fd; // file descriptor -  need to malloc this
         struct node_t *next;
 } node_t;
 
@@ -42,7 +42,7 @@ void initialize_queue(queue_t *queue);
  * @param queue The queue to modify.
  * @param element The element to add.
  */
-void queue_work(queue_t *queue, void *element);
+void queue_work(queue_t *queue, int sock_fd);
 
 /**
  * Removes and returns the element at the front of the queue.
