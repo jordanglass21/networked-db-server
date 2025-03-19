@@ -4,7 +4,7 @@
 #
 
 LDLIBS=-lz -lpthread
-CFLAGS=-ggdb3 -Wall -Wno-format-overflow
+CFLAGS=-ggdb3 -Wall -Wno-format-overflow -fsanitize=thread
 
 EXES = dbserver dbtest
 

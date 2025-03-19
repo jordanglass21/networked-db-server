@@ -36,6 +36,7 @@ queue_t *queue;
 
 pthread_mutex_t q_lock = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t d_lock = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t s_lock = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t q_cond = PTHREAD_COND_INITIALIZER;
 
 /* Functions for the main thread */
@@ -44,14 +45,16 @@ pthread_cond_t q_cond = PTHREAD_COND_INITIALIZER;
  * Prints statistics
  */
 void stats() {
+		pthread_mutex_lock(&s_lock);
         printf("getting stats...\n");
-	printf("Port: %d\n", *PORT);
+		printf("Port: %d\n", *PORT);
         printf("Number of objects in table: %d\n", STATS->table_count);
         printf("Number of read requests: %d\n", STATS->read_count);
         printf("Number of write requests: %d\n", STATS->write_count);
         printf("Number of delete requests: %d\n", STATS->delete_count);
         printf("Number of requests queued waiting for worker threads: %d\n", STATS->requests_queued);
         printf("Number of failed requests: %d\n", STATS->failed_count);
+		pthread_mutex_unlock(&s_lock);
 }
 
 
@@ -173,8 +176,10 @@ void handle_write(struct request rq, int sock_fd, char* filename) {
 	write(sock_fd, &rq, sizeof(rq));
 	
 	//update stats
+	pthread_mutex_lock(&s_lock);
 	STATS->write_count++;
 	STATS->table_count++;
+	pthread_mutex_unlock(&s_lock);
 }
 
 /**
@@ -203,7 +208,9 @@ void handle_write(struct request rq, int sock_fd, char* filename) {
 	write(sock_fd, &buf, sz);
 
 	//update stats
+	pthread_mutex_lock(&s_lock);
 	STATS->read_count++;
+	pthread_mutex_unlock(&s_lock);
  }
 
  /**
@@ -229,8 +236,10 @@ void handle_delete(struct request rq, int sock_fd, char* filename) {
 	write(sock_fd, &rq, sizeof(rq));
 
 	//update stats
+	pthread_mutex_lock(&s_lock);
 	STATS->delete_count++;
 	STATS->table_count--;
+	pthread_mutex_unlock(&s_lock);
 }
 
 /**
@@ -290,7 +299,9 @@ void queue_work(queue_t *queue, int sock_fd) {
 
         // we added a node so the queue grew by one
         queue->size++;
+		pthread_mutex_lock(&s_lock);
 		STATS->requests_queued = queue->size;
+		pthread_mutex_unlock(&s_lock);
 }
 
 /**
@@ -319,8 +330,10 @@ int get_work() {
         free(first);
 
 	//printf("fd: %d\n", fd);
+	pthread_mutex_lock(&s_lock);
 	STATS->requests_queued = queue->size;
-        return fd;
+	pthread_mutex_unlock(&s_lock);
+	return fd;
 }
 
 /**
@@ -415,8 +428,12 @@ int main(int argc, char **argv) {
 		char word[8];
 		sscanf(line, "%7s", word);
 		if (strcmp(word, "quit") == 0) {
+			pthread_mutex_lock(&q_lock);
+			pthread_mutex_lock(&s_lock);
 			free(STATS);
 			free(queue);
+			pthread_mutex_unlock(&q_lock);
+			pthread_mutex_unlock(&s_lock);
 			free(PORT);
 			quit(SOCK_FD);
 		} else if (strcmp(word, "stats") == 0) {
