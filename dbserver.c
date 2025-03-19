@@ -13,8 +13,8 @@
 
 /* Variable declarations that are necessary for the worker threads */
 
-// Buffer to store data from request or data read from file.
-char buf[4096];
+// // Buffer to store data from request or data read from file.
+// char buf[4096];
 
 int *PORT;
 
@@ -73,10 +73,10 @@ void quit(int *sock_fd) {
  * @param filename char pointer storing name of the file to be read from 
  * 					the file system.
  */
-int read_file(char* filename) {
+int read_file(char* filename, char* buf, int sz) {
 	//printf("Reading...\n");
 	int fd = open(filename, O_RDONLY);
-	int size = read(fd, buf, sizeof(buf));
+	int size = read(fd, buf, sz);
 	//printf("size %d\n", size);
 	//printf("buf %s\n", buf);
 	close(fd);
@@ -89,7 +89,7 @@ int read_file(char* filename) {
  * @param filename char pointer storing name of the file to be written to 
  * 					the file system.
  */
-void write_file(char* filename) {
+void write_file(char* filename, char* buf) {
 	//printf("Writing...\n");
 	int fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0777);
 	if(fd < 0)
@@ -136,6 +136,7 @@ int findOpenIdx() {
  * @param filename	Filename to write data from request to for DB impl.
  */
 void handle_write(struct request rq, int sock_fd, char* filename) {
+	char buf[4096];
 	pthread_mutex_lock(&d_lock);
 	int dbIdx = findIdxByName(rq.name);
 	if(dbIdx == -1) dbIdx = findOpenIdx();
@@ -158,12 +159,12 @@ void handle_write(struct request rq, int sock_fd, char* filename) {
 
 	usleep(random() % 10000);
 	memset(buf, 0, sizeof(buf));
-	read(sock_fd, &buf, atoi(rq.len));
+	read(sock_fd, buf, atoi(rq.len));
 	//printf("Data: %s\n\n", buf);
 	sprintf(filename, "./tmp/data.%d", dbIdx);
 	
 	pthread_mutex_lock(&d_lock);
-	write_file(filename);
+	write_file(filename, buf);
 	strcpy(DB[dbIdx].name, rq.name);
 	DB[dbIdx].status = 1;
 	pthread_mutex_unlock(&d_lock);
@@ -185,6 +186,7 @@ void handle_write(struct request rq, int sock_fd, char* filename) {
  */
 
  void handle_read(struct request rq, int sock_fd, char* filename) {
+	char buf[4096];
 	int idx = findIdxByName(rq.name);
 	if(idx == -1) {
 		perror("READ: NO KEY FOUND WITH SPECIFIED VALUE");
@@ -194,7 +196,7 @@ void handle_write(struct request rq, int sock_fd, char* filename) {
 		return;
 	}
 	sprintf(filename, "./tmp/data.%d", idx);
-	int sz = read_file(filename);
+	int sz = read_file(filename, buf, sizeof(buf));
 	rq.op_status = 'K';
 	sprintf(rq.len, "%7d", sz);
 	write(sock_fd, &rq, sizeof(rq));
@@ -403,10 +405,11 @@ int main(int argc, char **argv) {
 
 	for(int i = 0; i < 200; i++) DB[i].status = 0;
 	pthread_t listener_t;
-	pthread_t w1;
-	int w1_id = 1;
+	pthread_t w_threads[4];
 	pthread_create(&listener_t, NULL, (void *)listener, NULL);
-	pthread_create(&w1, NULL, (void *)worker, (void *)&w1_id);
+	for(int i = 0; i < 4; i++) {
+		pthread_create(&w_threads[i], NULL, (void *)worker, NULL);
+	}
 	char line[128];
 	while (fgets(line, sizeof(line), stdin) != NULL) {
 		char word[8];
