@@ -59,7 +59,7 @@ void stats() {
  * Terminates the server
  */
 void quit(int *sock_fd) {
-	printf("quitting...\n");
+	//printf("quitting...\n");
 	close(*sock_fd);
 	free(sock_fd);
 	exit(0);
@@ -74,11 +74,11 @@ void quit(int *sock_fd) {
  * 					the file system.
  */
 int read_file(char* filename) {
-	printf("Reading...\n");
+	//printf("Reading...\n");
 	int fd = open(filename, O_RDONLY);
 	int size = read(fd, buf, sizeof(buf));
-	printf("size %d\n", size);
-	printf("buf %s\n", buf);
+	//printf("size %d\n", size);
+	//printf("buf %s\n", buf);
 	close(fd);
 	return size;
 }
@@ -90,7 +90,7 @@ int read_file(char* filename) {
  * 					the file system.
  */
 void write_file(char* filename) {
-	printf("Writing...\n");
+	//printf("Writing...\n");
 	int fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0777);
 	if(fd < 0)
 		perror("can't open"), exit(0);
@@ -159,7 +159,7 @@ void handle_write(struct request rq, int sock_fd, char* filename) {
 	usleep(random() % 10000);
 	memset(buf, 0, sizeof(buf));
 	read(sock_fd, &buf, atoi(rq.len));
-	printf("Data: %s\n\n", buf);
+	//printf("Data: %s\n\n", buf);
 	sprintf(filename, "./tmp/data.%d", dbIdx);
 	
 	pthread_mutex_lock(&d_lock);
@@ -241,9 +241,9 @@ void handle_delete(struct request rq, int sock_fd, char* filename) {
 void handle_work(int sock_fd) {
 	struct request rq;
 	read(sock_fd, &rq, sizeof(rq));
-	printf("Operation: %c\n", rq.op_status);
-	printf("Name: %s\n", rq.name);
-	printf("Length: %s\n", rq.len);
+	//printf("Operation: %c\n", rq.op_status);
+	//printf("Name: %s\n", rq.name);
+	//printf("Length: %s\n", rq.len);
 	char filename[32];
 	if(rq.op_status == 'W') {
 		handle_write(rq, sock_fd, filename);
@@ -267,7 +267,7 @@ void handle_work(int sock_fd) {
  * @param sock_fd Socket file descriptor to queue a work item to.
  */
 void queue_work(queue_t *queue, int sock_fd) {
-	printf("queueing work...\n");
+	//printf("queueing work...\n");
 
 	// initialize node
 	node_t *node = malloc(sizeof(node_t));
@@ -299,7 +299,7 @@ void queue_work(queue_t *queue, int sock_fd) {
  */
 int get_work() {
 
-	printf("getting work item...\n");
+	//printf("getting work item...\n");
         // if there is nothing in the queue
         if (queue->size == 0 || queue == NULL) {
                 return -1;
@@ -316,8 +316,8 @@ int get_work() {
         // free allocated mememory of the dequeued node
         free(first);
 
-		printf("fd: %d\n", fd);
-		STATS->requests_queued = queue->size;
+	//printf("fd: %d\n", fd);
+	STATS->requests_queued = queue->size;
         return fd;
 }
 
@@ -338,7 +338,7 @@ void initialize_queue(queue_t *queue) {
  * Loops accepting connections and calling handle_work().
  */
 void listener() {
-	printf("listening...\n");
+	//printf("listening...\n");
 
 	// given by part 2 of assignment
 	int port = *PORT;
@@ -372,7 +372,7 @@ void worker(void *arg) {
 			pthread_cond_wait(&q_cond, &q_lock);
 		}
 		int work_fd = get_work(queue);
-		printf("work_fd: %d\n", work_fd);
+		//printf("work_fd: %d\n", work_fd);
 		pthread_mutex_unlock(&q_lock);
 		handle_work(work_fd);
 	}
