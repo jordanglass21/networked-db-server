@@ -129,6 +129,19 @@ int findOpenIdx() {
 	return -1;
 }
 
+/**
+ * Computes occupied entry space
+ */
+int findObjInTable() {
+	int tally = 0;
+	for(int i = 0; i < 200; i++) {
+		if(DB[i].status == 1) {
+			tally++;
+		}
+	}
+	return tally;
+}
+
 /* Functions for the listener and worker threads */
 
 /**
@@ -140,46 +153,53 @@ int findOpenIdx() {
  */
 void handle_write(struct request rq, int sock_fd, char* filename) {
 	char buf[4096];
+	memset(buf, 0, sizeof(buf));
+	read(sock_fd, buf, atoi(rq.len));
 	pthread_mutex_lock(&d_lock);
-	int dbIdx = findIdxByName(rq.name);
-	if(dbIdx == -1) dbIdx = findOpenIdx();
-	if(dbIdx == -1) {
+	int idx = findIdxByName(rq.name);
+	if(idx == -1) idx = findOpenIdx();
+	if(idx == -1) {
 		perror("WRITE: INSUFFICIENT SPACE FOR WRITE");
 		rq.op_status = 'X';
 		write(sock_fd, &rq, sizeof(rq));
+		pthread_mutex_lock(&s_lock);
+		STATS->write_count++;
 		STATS->failed_count++;
+		pthread_mutex_unlock(&s_lock);
+		pthread_mutex_unlock(&d_lock);
 		return;
 	}
-	if(DB[dbIdx].status == 2) {
+	if(DB[idx].status == 2) {
 		perror("WRITE: Resource Busy");
 		rq.op_status = 'X';
 		write(sock_fd, &rq, sizeof(rq));
+		pthread_mutex_lock(&s_lock);
+		STATS->write_count++;
 		STATS->failed_count++;
+		pthread_mutex_unlock(&s_lock);
+		pthread_mutex_unlock(&d_lock);
 		return;
 	}
-	DB[dbIdx].status = 2;
-	pthread_mutex_unlock(&d_lock);
+	DB[idx].status = 2;
+	sprintf(filename, "./tmp/data.%d", idx);
 
 	usleep(random() % 10000);
-	memset(buf, 0, sizeof(buf));
-	read(sock_fd, buf, atoi(rq.len));
 	//printf("Data: %s\n\n", buf);
-	sprintf(filename, "./tmp/data.%d", dbIdx);
 	
-	pthread_mutex_lock(&d_lock);
+	// strcat(buf, rq.name);
 	write_file(filename, buf);
-	strcpy(DB[dbIdx].name, rq.name);
-	DB[dbIdx].status = 1;
-	pthread_mutex_unlock(&d_lock);
-
-	rq.op_status = 'K';
-	write(sock_fd, &rq, sizeof(rq));
-	
+	strcpy(DB[idx].name, rq.name);
+	DB[idx].status = 1;
 	//update stats
 	pthread_mutex_lock(&s_lock);
 	STATS->write_count++;
-	STATS->table_count++;
+	STATS->table_count = findObjInTable();
 	pthread_mutex_unlock(&s_lock);
+	
+	rq.op_status = 'K';
+	write(sock_fd, &rq, sizeof(rq));
+	
+	pthread_mutex_unlock(&d_lock);
 }
 
 /**
@@ -192,25 +212,33 @@ void handle_write(struct request rq, int sock_fd, char* filename) {
 
  void handle_read(struct request rq, int sock_fd, char* filename) {
 	char buf[4096];
+	pthread_mutex_lock(&d_lock);
 	int idx = findIdxByName(rq.name);
 	if(idx == -1) {
 		perror("READ: NO KEY FOUND WITH SPECIFIED VALUE");
 		rq.op_status = 'X';
 		write(sock_fd, &rq, sizeof(rq));
+		pthread_mutex_lock(&s_lock);
+		STATS->read_count++;
 		STATS->failed_count++;
+		pthread_mutex_unlock(&s_lock);
+		pthread_mutex_unlock(&d_lock);
 		return;
 	}
 	sprintf(filename, "./tmp/data.%d", idx);
 	int sz = read_file(filename, buf, sizeof(buf));
-	rq.op_status = 'K';
-	sprintf(rq.len, "%7d", sz);
-	write(sock_fd, &rq, sizeof(rq));
-	write(sock_fd, &buf, sz);
-
+	
 	//update stats
 	pthread_mutex_lock(&s_lock);
 	STATS->read_count++;
 	pthread_mutex_unlock(&s_lock);
+	
+	rq.op_status = 'K';
+	sprintf(rq.len, "%7d", sz);
+	write(sock_fd, &rq, sizeof(rq));
+	write(sock_fd, &buf, sz);
+	
+	pthread_mutex_unlock(&d_lock);
  }
 
  /**
@@ -221,25 +249,34 @@ void handle_write(struct request rq, int sock_fd, char* filename) {
  * @param filename	Filename to write data from request to for DB impl.
  */
 void handle_delete(struct request rq, int sock_fd, char* filename) {
+	pthread_mutex_lock(&d_lock);
 	int idx = findIdxByName(rq.name);
 	if(idx == -1) {
 		// no entry found with name, returning failure
 		perror("DELETE: NO KEY FOUND WITH SPECIFIED VALUE");
 		rq.op_status = 'X';
 		write(sock_fd, &rq, sizeof(rq));
+		pthread_mutex_lock(&s_lock);
+		STATS->delete_count++;
 		STATS->failed_count++;
+		pthread_mutex_unlock(&s_lock);
+		pthread_mutex_unlock(&d_lock);
 		return;
 	}
 	DB[idx].status = 0;
 	memset(DB[idx].name, 0, 31);
-	rq.op_status = 'K';
-	write(sock_fd, &rq, sizeof(rq));
-
+	sprintf(filename, "./tmp/data.%d", idx);
+	unlink(filename);
 	//update stats
 	pthread_mutex_lock(&s_lock);
 	STATS->delete_count++;
-	STATS->table_count--;
+	STATS->table_count = findObjInTable();
 	pthread_mutex_unlock(&s_lock);
+	
+	rq.op_status = 'K';
+	write(sock_fd, &rq, sizeof(rq));
+	
+	pthread_mutex_unlock(&d_lock);
 }
 
 /**
@@ -259,13 +296,9 @@ void handle_work(int sock_fd) {
 	if(rq.op_status == 'W') {
 		handle_write(rq, sock_fd, filename);
 	} else if(rq.op_status == 'R') {
-		pthread_mutex_lock(&d_lock);
 		handle_read(rq, sock_fd, filename);
-		pthread_mutex_unlock(&d_lock);
 	} else if (rq.op_status == 'D') {
-		pthread_mutex_lock(&d_lock);
 		handle_delete(rq, sock_fd, filename);
-		pthread_mutex_unlock(&d_lock);
 	}
 	close(sock_fd);
 }
