@@ -182,13 +182,16 @@ void handle_write(struct request rq, int sock_fd, char* filename) {
 	}
 	DB[idx].status = 2;
 	sprintf(filename, "./tmp/data.%d", idx);
-
-	usleep(random() % 10000);
+	strcpy(DB[idx].name, rq.name);
+	pthread_mutex_unlock(&d_lock);
+	
+	
 	//printf("Data: %s\n\n", buf);
+	usleep(random() % 10000);
 	
 	// strcat(buf, rq.name);
+	pthread_mutex_lock(&d_lock);
 	write_file(filename, buf);
-	strcpy(DB[idx].name, rq.name);
 	DB[idx].status = 1;
 	//update stats
 	pthread_mutex_lock(&s_lock);
@@ -216,6 +219,17 @@ void handle_write(struct request rq, int sock_fd, char* filename) {
 	int idx = findIdxByName(rq.name);
 	if(idx == -1) {
 		perror("READ: NO KEY FOUND WITH SPECIFIED VALUE");
+		rq.op_status = 'X';
+		write(sock_fd, &rq, sizeof(rq));
+		pthread_mutex_lock(&s_lock);
+		STATS->read_count++;
+		STATS->failed_count++;
+		pthread_mutex_unlock(&s_lock);
+		pthread_mutex_unlock(&d_lock);
+		return;
+	}
+	if(DB[idx].status == 2) {
+		perror("READ: Resource Busy");
 		rq.op_status = 'X';
 		write(sock_fd, &rq, sizeof(rq));
 		pthread_mutex_lock(&s_lock);
@@ -263,10 +277,24 @@ void handle_delete(struct request rq, int sock_fd, char* filename) {
 		pthread_mutex_unlock(&d_lock);
 		return;
 	}
-	DB[idx].status = 0;
+	if(DB[idx].status == 2) {
+		perror("DELETE: Resource Busy");
+		rq.op_status = 'X';
+		write(sock_fd, &rq, sizeof(rq));
+		pthread_mutex_lock(&s_lock);
+		STATS->delete_count++;
+		STATS->failed_count++;
+		pthread_mutex_unlock(&s_lock);
+		pthread_mutex_unlock(&d_lock);
+		return;
+	}
+	DB[idx].status = 2;
 	memset(DB[idx].name, 0, 31);
+	DB[idx].status = 0;
+	
 	sprintf(filename, "./tmp/data.%d", idx);
 	unlink(filename);
+	
 	//update stats
 	pthread_mutex_lock(&s_lock);
 	STATS->delete_count++;
@@ -401,9 +429,9 @@ void listener() {
 	if (bind(sock, (struct sockaddr*)&addr, sizeof(addr)) < 0)
 		perror("can't bind"), exit(1);
 	// tell OS to start listening on it
-    	if (listen(sock, 2) < 0)
+    if (listen(sock, 2) < 0)
 		perror("listen"), exit(1);
-
+	
 	// block until we get a new connection
 	while (1) {
 		int fd = accept(sock, NULL, NULL);

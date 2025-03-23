@@ -76,8 +76,10 @@ echo "Test 6: Concurrent Read/Write Operations"
 (sleep 5; echo quit) | ./dbserver 5006 || echo FAILED &
 sleep 1
 ./dbtest --port=5006 --set=KEY VAL &
+s_pid=$!
 ./dbtest --port=5006 --get=KEY &
-wait
+g_pid=$!
+wait $s_pid $g_pid
 output="$(./dbtest --port=5006 --get=KEY)"
 test_result "$output" '="VAL"'
 wait
@@ -209,3 +211,22 @@ test_result "$output3" 'READ: FAILED (X)'
 wait
 echo
 
+# Test 15
+echo "Test 15: Test Non-deterministic Behavior and Resource Busy"
+(sleep 120; echo stats; echo quit) | ./dbserver 5015|| echo FAILED &
+sleep 2
+for i in {1..20}
+do
+echo "===$i==="
+(
+	./dbtest --port=5015 --set=KEY VAL &
+	./dbtest --port=5015 --delete=KEY &
+	./dbtest --port=5015 --set=KEY VAL2 &
+	./dbtest --port=5015 --get=KEY &
+	wait
+	echo "======"
+) &
+sleep 5
+done
+wait
+echo
