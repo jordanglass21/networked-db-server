@@ -24,9 +24,9 @@ test_result () {
 # Not sure if that is correct. Also would be cool to somehow automate the result checking.
 echo "Test 1: Running 100 requests on 5 threads"
 (sleep 5; echo stats; echo quit) | ./dbserver 5001 || echo FAILED & sleep 1
-./dbtest --port=5001 --count=100 --threads=5
-echo "Test 1 Complete"
+./dbtest --port=5001 --count=100 --threads=5 
 wait
+echo
 
 # Test 2
 # This verifies that a value is set to a key and then got. Would be cool if we could find a way
@@ -38,16 +38,18 @@ sleep 1
 output="$(./dbtest --port=5002 --get=KEY)"
 test_result "$output" '="VAL"'
 wait
+echo
 
 # Test 3
 echo "Test 3: Overwriting an Existing Key"
 (sleep 5; echo quit) | ./dbserver 5003 || echo FAILED &
 sleep 1
 ./dbtest --port=5003 --set=KEY VAL
-./dbtest --port=5003 --set=KEY NEWVAL
+./dbtest --port=5003 --set=KEY NEW_VAL
 output="$(./dbtest --port=5003 --get=KEY)"
-test_result "$output" "NEWVAL"
+test_result "$output" '="NEW_VAL"'
 wait
+echo
 
 # Test 4
 echo "Test 4: Deleting a Key"
@@ -56,16 +58,18 @@ sleep 1
 ./dbtest --port=5004 --set=KEY VAL
 ./dbtest --port=5004 --delete=KEY
 output="$(./dbtest --port=5004 --get=KEY)"
-test_result "$output" "NOT_FOUND"
+test_result "$output" "READ: FAILED (X)"
 wait
+echo
 
 # Test 5
-echo "Test 5: Retrieving a Nonexistent Key"
+echo "Test 5: Retrieving a Key That has no Value"
 (sleep 5; echo quit) | ./dbserver 5005 || echo FAILED &
 sleep 1
 output="$(./dbtest --port=5005 --get=KEY)"
-test_result "$output" "NOT_FOUND"
+test_result "$output" "READ: FAILED (X)"
 wait
+echo
 
 # Test 6
 echo "Test 6: Concurrent Read/Write Operations"
@@ -75,13 +79,133 @@ sleep 1
 ./dbtest --port=5006 --get=KEY &
 wait
 output="$(./dbtest --port=5006 --get=KEY)"
-test_result "$output" "VAL"
+test_result "$output" '="VAL"'
 wait
+echo
 
 # Test 7
-echo "Test 7: Stress Testing with 1000 Requests"
-(sleep 5; echo quit) | ./dbserver 5007 || echo FAILED &
+echo "Test 7: Running 1000 Requests"
+(sleep 5; echo stats; echo quit) | ./dbserver 5007 || echo FAILED &
 sleep 1
 ./dbtest --port=5007 --count=1000 --threads=10
-echo "Test 7 Complete"
 wait
+echo
+
+# Test 8 
+echo "Test 8: Concurrently Setting Multiple Keys"
+(sleep 5; echo quit) | ./dbserver 5008 || echo FAILED &
+sleep 1
+./dbtest --port=5008 --set=KEY_1 VAL_1 &
+./dbtest --port=5008 --set=KEY_2 VAL_2
+output1="$(./dbtest --port=5008 --get=KEY_1)"
+output2="$(./dbtest --port=5008 --get=KEY_2)"
+test_result "$output1" '="VAL_1"'
+test_result "$output2" '="VAL_2"'
+wait
+echo
+
+# Test 9
+echo "Test 9: Concurrently Getting Multiple Values"
+(sleep 5; echo quit) | ./dbserver 5009 || echo FAILED &
+sleep 1
+./dbtest --port=5009 --set=KEY_1 VAL_1
+./dbtest --port=5009 --set=KEY_2 VAL_2
+output1="$(./dbtest --port=5009 --get=KEY_1)" &
+output2="$(./dbtest --port=5009 --get=KEY_2)"
+test_result "$output1" '="VAL_1"'
+test_result "$output2" '="VAL_2"'
+wait
+echo
+
+# Test 10
+echo "Test 10: Concurrent Reading and Writing"
+(sleep 5; echo quit) | ./dbserver 5010 || echo FAILED &
+sleep 1
+./dbtest --port=5010 --set=KEY_1 VAL_1 &
+./dbtest --port=5010 --set=KEY_2 VAL_2
+output1="$(./dbtest --port=5010 --get=KEY_1)" &
+output2="$(./dbtest --port=5010 --get=KEY_2)"
+test_result "$output1" '="VAL_1"'
+test_result "$output2" '="VAL_2"'
+wait
+echo
+
+# Test 11
+echo "Test 11: Empty String for Key and Value Pair"
+(sleep 5; echo quit) | ./dbserver 5011 || echo FAILED &
+sleep 2
+./dbtest --port=5011 --set=""
+./dbtest --port=5011 --get=""
+output="$(./dbtest --port=5011 --get=)"
+test_result "$output" '=""'
+wait
+echo
+
+# Test 12
+echo "Test 12: Many Concurrent Reads"
+(sleep 5; echo quit) | ./dbserver 5012|| echo FAILED &
+sleep 2
+./dbtest --port=5012 --set=KEY VAL
+./dbtest --port=5012 --get=KEY &
+./dbtest --port=5012 --get=KEY &
+./dbtest --port=5012 --get=KEY &
+./dbtest --port=5012 --get=KEY &
+output1="$(./dbtest --port=5012 --get=KEY)"
+output2="$(./dbtest --port=5012 --get=KEY)"
+output3="$(./dbtest --port=5012 --get=KEY)"
+test_result "$output1" '="VAL"'
+test_result "$output2" '="VAL"'
+test_result "$output3" '="VAL"'
+wait
+echo
+
+# Test 13
+echo "Test 13: Many Concurrent Reads and Writes"
+(sleep 5; echo quit) | ./dbserver 5013 || echo FAILED &
+sleep 2
+./dbtest --port=5013 --set=KEY_1 VAL_1 &
+./dbtest --port=5013 --set=KEY_2 VAL_2 &
+./dbtest --port=5013 --set=KEY_3 VAL_3 &
+./dbtest --port=5013 --set=KEY_4 VAL_4
+./dbtest --port=5013 --get=KEY_1 &
+./dbtest --port=5013 --get=KEY_2 &
+./dbtest --port=5013 --get=KEY_3 &
+./dbtest --port=5013 --get=KEY_4
+output1="$(./dbtest --port=5013 --get=KEY_1)"
+output2="$(./dbtest --port=5013 --get=KEY_2)"
+output3="$(./dbtest --port=5013 --get=KEY_3)"
+output4="$(./dbtest --port=5013 --get=KEY_4)"
+test_result "$output1" '="VAL_1"'
+test_result "$output2" '="VAL_2"'
+test_result "$output3" '="VAL_3"'
+test_result "$output4" '="VAL_4"'
+wait
+echo
+
+# Test 14
+echo "Test 14: Many Concurrent Deletes"
+(sleep 5; echo quit) | ./dbserver 5014|| echo FAILED &
+sleep 2
+./dbtest --port=5014 --set=KEY_1 VAL_1 &
+./dbtest --port=5014 --set=KEY_2 VAL_2 &
+./dbtest --port=5014 --set=KEY_3 VAL_3 &
+./dbtest --port=5014 --set=KEY_4 VAL_4
+./dbtest --port=5014 --get=KEY_1 &
+./dbtest --port=5014 --get=KEY_2 &
+./dbtest --port=5014 --get=KEY_3 &
+./dbtest --port=5014 --get=KEY_4
+./dbtest --port=5014 --delete=KEY_1 &
+./dbtest --port=5014 --delete=KEY_2 &
+./dbtest --port=5014 --delete=KEY_3 &
+./dbtest --port=5014 --delete=KEY_4
+output1="$(./dbtest --port=5014 --get=KEY_1)"
+output2="$(./dbtest --port=5014 --get=KEY_2)"
+output3="$(./dbtest --port=5014 --get=KEY_3)"
+output4="$(./dbtest --port=5014 --get=KEY_4)"
+test_result "$output1" 'READ: FAILED (X)'
+test_result "$output2" 'READ: FAILED (X)'
+test_result "$output3" 'READ: FAILED (X)'
+test_result "$output3" 'READ: FAILED (X)'
+wait
+echo
+
