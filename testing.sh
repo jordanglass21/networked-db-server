@@ -38,3 +38,50 @@ sleep 1
 output="$(./dbtest --port=5002 --get=KEY)"
 test_result "$output" '="VAL"'
 wait
+
+# Test 3
+echo "Test 3: Overwriting an Existing Key"
+(sleep 5; echo quit) | ./dbserver 5003 || echo FAILED &
+sleep 1
+./dbtest --port=5003 --set=KEY VAL
+./dbtest --port=5003 --set=KEY NEWVAL
+output="$(./dbtest --port=5003 --get=KEY)"
+test_result "$output" "NEWVAL"
+wait
+
+# Test 4
+echo "Test 4: Deleting a Key"
+(sleep 5; echo quit) | ./dbserver 5004 || echo FAILED &
+sleep 1
+./dbtest --port=5004 --set=KEY VAL
+./dbtest --port=5004 --delete=KEY
+output="$(./dbtest --port=5004 --get=KEY)"
+test_result "$output" "NOT_FOUND"
+wait
+
+# Test 5
+echo "Test 5: Retrieving a Nonexistent Key"
+(sleep 5; echo quit) | ./dbserver 5005 || echo FAILED &
+sleep 1
+output="$(./dbtest --port=5005 --get=KEY)"
+test_result "$output" "NOT_FOUND"
+wait
+
+# Test 6
+echo "Test 6: Concurrent Read/Write Operations"
+(sleep 5; echo quit) | ./dbserver 5006 || echo FAILED &
+sleep 1
+./dbtest --port=5006 --set=KEY VAL &
+./dbtest --port=5006 --get=KEY &
+wait
+output="$(./dbtest --port=5006 --get=KEY)"
+test_result "$output" "VAL"
+wait
+
+# Test 7
+echo "Test 7: Stress Testing with 1000 Requests"
+(sleep 5; echo quit) | ./dbserver 5007 || echo FAILED &
+sleep 1
+./dbtest --port=5007 --count=1000 --threads=10
+echo "Test 7 Complete"
+wait
