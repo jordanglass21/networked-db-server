@@ -19,9 +19,8 @@ test_result () {
 }
 
 # Test 1
-# This one is more of a proof of concept. It runs 100 requests over 5 threads.
-# Then prints the stats. Notice the sum of the write and read is 100, but there are also deletes...
-# Not sure if that is correct. Also would be cool to somehow automate the result checking.
+# This one runs 100 requests over 5 threads.
+# Then prints the stats. Notice the sum of the write and read is 100.
 echo "Test 1: Running 100 requests on 5 threads"
 (sleep 5; echo stats; echo quit) | ./dbserver 5001 || echo FAILED & sleep 1
 ./dbtest --port=5001 --count=100 --threads=5 
@@ -29,8 +28,7 @@ wait
 echo
 
 # Test 2
-# This verifies that a value is set to a key and then got. Would be cool if we could find a way
-# to not have to format the value when passing it to the test_result function.
+# This verifies that a value is set to a key by retreaving the value.
 echo "Test 2: Setting and Getting a Key Value Pair" 
 (sleep 5; echo quit) | ./dbserver 5002 || echo FAILED&
 sleep 1
@@ -41,6 +39,7 @@ wait
 echo
 
 # Test 3
+# Writes a key, and then overwrites the exsisting key to a new value.
 echo "Test 3: Overwriting an Existing Key"
 (sleep 5; echo quit) | ./dbserver 5003 || echo FAILED &
 sleep 1
@@ -52,6 +51,8 @@ wait
 echo
 
 # Test 4
+# Writes a value, deletes the value, and then reads the value again.
+# The read shoudl fail because the value is deleted.
 echo "Test 4: Deleting a Key"
 (sleep 5; echo quit) | ./dbserver 5004 || echo FAILED &
 sleep 1
@@ -63,6 +64,8 @@ wait
 echo
 
 # Test 5
+# The read should fail becuase we are reading a value before we ever
+# write to it.
 echo "Test 5: Retrieving a Key That has no Value"
 (sleep 5; echo quit) | ./dbserver 5005 || echo FAILED &
 sleep 1
@@ -72,6 +75,8 @@ wait
 echo
 
 # Test 6
+# Concurrently reads and writes a data,
+# and only after it well once again read the data.
 echo "Test 6: Concurrent Read/Write Operations"
 (sleep 5; echo quit) | ./dbserver 5006 || echo FAILED &
 sleep 1
@@ -86,6 +91,9 @@ wait
 echo
 
 # Test 7
+# Run 1000 read and write requests.
+# Notice the sum of read and write requests printed by the stats
+# function is queal to 1000.
 echo "Test 7: Running 1000 Requests"
 (sleep 5; echo stats; echo quit) | ./dbserver 5007 || echo FAILED &
 sleep 1
@@ -93,7 +101,9 @@ sleep 1
 wait
 echo
 
-# Test 8 
+# Test 8
+# Concurrenlty setting mutliple key value pairs.
+# Then read the key value pairs to verify.
 echo "Test 8: Concurrently Setting Multiple Keys"
 (sleep 5; echo quit) | ./dbserver 5008 || echo FAILED &
 sleep 1
@@ -107,6 +117,8 @@ wait
 echo
 
 # Test 9
+# First set multiple keys values pairs.
+# Then concurrenlty get these values.
 echo "Test 9: Concurrently Getting Multiple Values"
 (sleep 5; echo quit) | ./dbserver 5009 || echo FAILED &
 sleep 1
@@ -120,6 +132,8 @@ wait
 echo
 
 # Test 10
+# First, concurrently set multiple key values pairs.
+# Then, concurrenlty get multiple values.
 echo "Test 10: Concurrent Reading and Writing"
 (sleep 5; echo quit) | ./dbserver 5010 || echo FAILED &
 sleep 1
@@ -133,6 +147,7 @@ wait
 echo
 
 # Test 11
+# This on does not work...
 echo "Test 11: Empty String for Key and Value Pair"
 (sleep 5; echo quit) | ./dbserver 5011 || echo FAILED &
 sleep 2
@@ -144,6 +159,8 @@ wait
 echo
 
 # Test 12
+# Write a key value pair.
+# Then concurrently get that value four times.
 echo "Test 12: Many Concurrent Reads"
 (sleep 5; echo quit) | ./dbserver 5012|| echo FAILED &
 sleep 2
@@ -162,6 +179,8 @@ wait
 echo
 
 # Test 13
+# First concurrently write a key value pair four times.
+# Then, concurrently read those values four times.
 echo "Test 13: Many Concurrent Reads and Writes"
 (sleep 5; echo quit) | ./dbserver 5013 || echo FAILED &
 sleep 2
@@ -185,6 +204,9 @@ wait
 echo
 
 # Test 14
+# First concurrenlty write a key values pair four times.
+# Then concurrenlty get those values.
+# Then concurrenlty delete all four values.
 echo "Test 14: Many Concurrent Deletes"
 (sleep 5; echo quit) | ./dbserver 5014|| echo FAILED &
 sleep 2
@@ -212,6 +234,8 @@ wait
 echo
 
 # Test 15
+# Used to ensure thr resource busy functionality is wokring properly
+# by issuing concurrent set, delete and get requests twenty times.
 echo "Test 15: Test Non-deterministic Behavior and Resource Busy"
 (sleep 120; echo stats; echo quit) | ./dbserver 5015|| echo FAILED &
 sleep 2
