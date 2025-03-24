@@ -453,55 +453,65 @@ void worker(void *arg) {
 		handle_work(work_fd);
 	}
 }
+
+void setup(int argc, char **argv) {
+	// deletes all files from previous program run
+        system("rm -f ./tmp/data.*");
+
+        // initialize the work queue
+        queue = malloc(sizeof(queue_t) * sizeof(DB));
+        initialize_queue(queue);
+
+        //initialize the stats struct
+        STATS = calloc(1, sizeof(stats_t));
+
+        SOCK_FD = calloc(1, sizeof(int));
+
+        PORT = calloc(1, sizeof(int));
+        int port = 5000;
+        if (argc == 2) {
+                port = atoi(argv[1]);
+        }
+        *PORT = port;
+
+        // zero out the db
+        for(int i = 0; i < 200; i++) DB[i].status = 0;
+}
+void controller(int argc, char **argv) {
+        
+	setup(argc, argv);
+
+	pthread_t listener_t;
+        pthread_t w_threads[4];
+        pthread_create(&listener_t, NULL, (void *)listener, NULL);
+        for(int i = 0; i < 4; i++) {
+                pthread_create(&w_threads[i], NULL, (void *)worker, NULL);
+        }
+        char line[128];
+        while (fgets(line, sizeof(line), stdin) != NULL) {
+                char word[8];
+                sscanf(line, "%7s", word);
+                if (strcmp(word, "quit") == 0) {
+                        pthread_mutex_lock(&q_lock);
+                        pthread_mutex_lock(&s_lock);
+                        free(STATS);
+                        free(queue);
+                        pthread_mutex_unlock(&q_lock);
+                        pthread_mutex_unlock(&s_lock);
+                        free(PORT);
+                        quit(SOCK_FD);
+                } else if (strcmp(word, "stats") == 0) {
+                        stats();
+                } else {
+                        printf("Command not recognized\n");
+                }
+        }
+}
+
 /**
  * Our main function!
  */
 int main(int argc, char **argv) {
-	// deletes all files from previous program run
-	system("rm -f ./tmp/data.*");
-
-	// initialize the work queue
-	queue = malloc(sizeof(queue_t) * sizeof(DB));
-	initialize_queue(queue);
-
-	//initialize the stats struct
-	STATS = calloc(1, sizeof(stats_t));
-	
-	SOCK_FD = calloc(1, sizeof(int));
-
-	PORT = calloc(1, sizeof(int));
-	int port = 5000;
-	if (argc == 2) {
-		port = atoi(argv[1]);
-	}
-	*PORT = port;
-
-
-	for(int i = 0; i < 200; i++) DB[i].status = 0;
-	pthread_t listener_t;
-	pthread_t w_threads[4];
-	pthread_create(&listener_t, NULL, (void *)listener, NULL);
-	for(int i = 0; i < 4; i++) {
-		pthread_create(&w_threads[i], NULL, (void *)worker, NULL);
-	}
-	char line[128];
-	while (fgets(line, sizeof(line), stdin) != NULL) {
-		char word[8];
-		sscanf(line, "%7s", word);
-		if (strcmp(word, "quit") == 0) {
-			pthread_mutex_lock(&q_lock);
-			pthread_mutex_lock(&s_lock);
-			free(STATS);
-			free(queue);
-			pthread_mutex_unlock(&q_lock);
-			pthread_mutex_unlock(&s_lock);
-			free(PORT);
-			quit(SOCK_FD);
-		} else if (strcmp(word, "stats") == 0) {
-			stats();
-		} else {
-			printf("Command not recognized\n");
-		}
-	}
+	controller(argc, argv);	
 	return 0;
 }
