@@ -29,30 +29,6 @@ typedef struct queue_t {
 } queue_t;
 
 /**
- * Initializes the queue.
- *
- * @param queue Pointer to the queue to initialize.
- */
-void initialize_queue(queue_t *queue);
-
-
-/**
- * Adds an element to the end of a queue.
- *
- * @param queue The queue to modify.
- * @param element The element to add.
- */
-void queue_work(queue_t *queue, int sock_fd);
-
-/**
- * Removes and returns the element at the front of the queue.
- *
- * @param queue The queue to modify.
- * @return The element removed from the front.
- */
-void *dequeue_work(queue_t *queue);
-
-/**
  * Structure to store the statistics of the program;
  */
 typedef struct stats_t {
