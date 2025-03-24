@@ -40,4 +40,10 @@ typedef struct stats_t {
 	int failed_count;
 } stats_t;
 
+// Defined struct that stores name and status for a file or index.
+typedef struct entry {
+        char name[31];
+        int status;
+}dbEntry;
+
 #endif
