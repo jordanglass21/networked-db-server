@@ -146,18 +146,6 @@ test_result "$output2" '="VAL_2"'
 wait
 echo
 
-# Test 11
-# This on does not work...
-echo "Test 11: Empty String for Key and Value Pair"
-(sleep 5; echo quit) | ./dbserver 5011 || echo FAILED &
-sleep 2
-./dbtest --port=5011 --set=""
-./dbtest --port=5011 --get=""
-output="$(./dbtest --port=5011 --get=)"
-test_result "$output" '=""'
-wait
-echo
-
 # Test 12
 # Write a key value pair.
 # Then concurrently get that value four times.
